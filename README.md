@@ -78,7 +78,7 @@ echo "iris.csv
 0.0001
 0.5
 42" | ./test
-``
+```
 96% accuracy.
 
 ## 🔧 Parameters
