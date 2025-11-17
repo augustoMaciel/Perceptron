@@ -17,7 +17,7 @@ A high-performance, memory-efficient multilayer perceptron (MLP) implementation 
 
 | Dataset | Samples | Features | Classes | Architecture | Accuracy |
 |---------|---------|----------|---------|--------------|----------|
-| **Iris** | 150 | 4 | 3 | 2 layers (16→8) | **96.67%** |
+| **Iris** | 150 | 4 | 3 | 2 layers (16→8) | **100.00%** |
 
 ## 🛠️ Installation
 
@@ -61,8 +61,8 @@ echo "iris.csv
 200
 0.005
 0.0001
-0.8
-42" | ./test
+0.75
+69" | ./test
 
 ## 🔧 Parameters
 
