@@ -17,7 +17,7 @@ A high-performance, memory-efficient multilayer perceptron (MLP) implementation 
 
 | Dataset | Samples | Features | Classes | Architecture | Accuracy |
 |---------|---------|----------|---------|--------------|----------|
-| **Iris** | 150 | 4 | 3 | 2 layers (16→8) | **93.84%** |
+| **Iris** | 150 | 4 | 3 | 2 layers (16→8) | **96.67%** |
 
 ## 🛠️ Installation
 
