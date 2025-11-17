@@ -52,7 +52,7 @@ random_seed" | ./test
 
 ### Example Configuration
 
-#### Iris Dataset (High Accuracy)
+#### Iris Dataset (Multi-Layer Perceptron)
 ```bash
 echo "iris.csv
 2
@@ -63,6 +63,23 @@ echo "iris.csv
 0.0001
 0.75
 69" | ./test
+
+100% accuracy.
+
+**#### Iris Dataset (Deep Neural Network)**
+```bash
+echo "iris.csv
+3
+16
+32
+64
+3000
+0.005
+0.0001
+0.5
+42" | ./test
+
+96% accuracy.
 
 ## 🔧 Parameters
 
