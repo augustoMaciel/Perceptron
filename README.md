@@ -66,7 +66,7 @@ echo "iris.csv
 
 100% accuracy.
 
-**#### Iris Dataset (Deep Neural Network)**
+#### Iris Dataset (Deep Neural Network)
 ```bash
 echo "iris.csv
 3
