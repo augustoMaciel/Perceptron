@@ -11,6 +11,8 @@
 #include "nn_fncs.h"
 #include "mtrcs.h"
 #include <math.h>
+#include <stdio.h>
+#include <string.h>
 
 #define MAX_GRADIENT_CLIP 10.0
 #define MIN_LEARNING_RATE 1e-8
@@ -30,6 +32,8 @@ MLP;
 
 void free_mlp(MLP *mlp);
 void free_matrix_contiguous(double **matrix, int rows);
+int save_mlp_binary(MLP *mlp, const char *path);
+MLP* load_mlp_binary(const char *path);
 
 void init_weights (double **matrix, int rows, int columns, double max, double min)
 {
@@ -324,7 +328,7 @@ void mlp_feedforward(MLP *mlp, double *input)
         
         for(i=0; i<output_size; i++)
         {
-            mlp->outputs[layer][i] = sigmoid(mlp->outputs[layer][i]);
+            mlp->outputs[layer][i] = relu(mlp->outputs[layer][i]);
         }
         
         current_input = mlp->outputs[layer];
@@ -380,7 +384,7 @@ void mlp_backward(MLP *mlp, double *input, double *class_vector)
 			{
 				sum += deltas[layer+1][k] * mlp->weights[layer+1][k][j];
 			}
-			sig_deriv = d_sigmoid(mlp->outputs[layer][j]);
+			sig_deriv = d_relu(mlp->outputs[layer][j]);
 			deltas[layer][j] = sum * sig_deriv;
 			
 			if(!isfinite(deltas[layer][j])) 
@@ -535,6 +539,129 @@ double test_model(MLP *mlp, double **data, int start_row, int end_row, int colum
     }
     
     return accuracy(correct, end_row, start_row);
+}
+
+// Binary format:
+// 4 bytes magic: 'MLPB'
+// int features
+// int classes
+// int num_hidden_layers
+// int[layer_count] layer_sizes (num_hidden_layers)
+// double learning_rate
+// double l2_lambda
+// For each layer i = 0..num_hidden_layers:
+//   int rows, int cols
+//   double[rows*cols] weights (row-major)
+
+int save_mlp_binary(MLP *mlp, const char *path)
+{
+    if(!mlp || !path) return -1;
+    FILE *f = fopen(path, "wb");
+    if(!f) return -2;
+
+    // Write magic
+    char magic[4] = {'M','L','P','B'};
+    if(fwrite(magic, 1, 4, f) != 4) { fclose(f); return -3; }
+
+    if(fwrite(&mlp->features, sizeof(int), 1, f) != 1) { fclose(f); return -4; }
+    if(fwrite(&mlp->classes, sizeof(int), 1, f) != 1) { fclose(f); return -5; }
+    if(fwrite(&mlp->num_hidden_layers, sizeof(int), 1, f) != 1) { fclose(f); return -6; }
+
+    // layer sizes
+    if(fwrite(mlp->layer_sizes, sizeof(int), mlp->num_hidden_layers, f) != (size_t)mlp->num_hidden_layers) { fclose(f); return -7; }
+
+    if(fwrite(&mlp->learning_rate, sizeof(double), 1, f) != 1) { fclose(f); return -8; }
+    if(fwrite(&mlp->l2_lambda, sizeof(double), 1, f) != 1) { fclose(f); return -9; }
+
+    // Write weights per layer
+    for(int layer=0; layer<=mlp->num_hidden_layers; layer++)
+    {
+        int rows, cols;
+        if(layer == 0) {
+            rows = mlp->layer_sizes[0];
+            cols = mlp->features + 1;
+        } else if(layer < mlp->num_hidden_layers) {
+            rows = mlp->layer_sizes[layer];
+            cols = mlp->layer_sizes[layer-1] + 1;
+        } else {
+            rows = mlp->classes;
+            cols = mlp->layer_sizes[mlp->num_hidden_layers-1] + 1;
+        }
+
+        if(fwrite(&rows, sizeof(int), 1, f) != 1) { fclose(f); return -10; }
+        if(fwrite(&cols, sizeof(int), 1, f) != 1) { fclose(f); return -11; }
+
+        // weights is double** contiguous for each row
+        for(int i=0; i<rows; i++) {
+            if(fwrite(mlp->weights[layer][i], sizeof(double), cols, f) != (size_t)cols) { fclose(f); return -12; }
+        }
+    }
+
+    fclose(f);
+    return 0;
+}
+
+MLP* load_mlp_binary(const char *path)
+{
+    if(!path) return NULL;
+    FILE *f = fopen(path, "rb");
+    if(!f) return NULL;
+
+    char magic[4];
+    if(fread(magic, 1, 4, f) != 4) { fclose(f); return NULL; }
+    if(!(magic[0]=='M' && magic[1]=='L' && magic[2]=='P' && magic[3]=='B')) { fclose(f); return NULL; }
+
+    MLP *mlp = (MLP*)malloc(sizeof(MLP));
+    if(!mlp) { fclose(f); return NULL; }
+    memset(mlp, 0, sizeof(MLP));
+
+    if(fread(&mlp->features, sizeof(int), 1, f) != 1) { free(mlp); fclose(f); return NULL; }
+    if(fread(&mlp->classes, sizeof(int), 1, f) != 1) { free(mlp); fclose(f); return NULL; }
+    if(fread(&mlp->num_hidden_layers, sizeof(int), 1, f) != 1) { free(mlp); fclose(f); return NULL; }
+
+    mlp->layer_sizes = malloc_1D_int(mlp->num_hidden_layers);
+    if(!mlp->layer_sizes) { free(mlp); fclose(f); return NULL; }
+    if(fread(mlp->layer_sizes, sizeof(int), mlp->num_hidden_layers, f) != (size_t)mlp->num_hidden_layers) { free(mlp->layer_sizes); free(mlp); fclose(f); return NULL; }
+
+    if(fread(&mlp->learning_rate, sizeof(double), 1, f) != 1) { free(mlp->layer_sizes); free(mlp); fclose(f); return NULL; }
+    if(fread(&mlp->l2_lambda, sizeof(double), 1, f) != 1) { free(mlp->layer_sizes); free(mlp); fclose(f); return NULL; }
+
+    // allocate containers
+    mlp->weights = malloc_3D_partial(mlp->num_hidden_layers + 1);
+    mlp->outputs = malloc_2D_partial(mlp->num_hidden_layers + 1);
+    if(!mlp->weights || !mlp->outputs) {
+        if(mlp->weights) free(mlp->weights);
+        if(mlp->outputs) free(mlp->outputs);
+        free(mlp->layer_sizes);
+        free(mlp);
+        fclose(f);
+        return NULL;
+    }
+
+    for(int layer=0; layer<=mlp->num_hidden_layers; layer++)
+    {
+        int rows, cols;
+        if(fread(&rows, sizeof(int), 1, f) != 1) { free_mlp(mlp); fclose(f); return NULL; }
+        if(fread(&cols, sizeof(int), 1, f) != 1) { free_mlp(mlp); fclose(f); return NULL; }
+
+        // allocate matrix contiguous rows x cols
+        mlp->weights[layer] = malloc_2D_complete(rows, cols);
+        if(!mlp->weights[layer]) { free_mlp(mlp); fclose(f); return NULL; }
+
+        for(int i=0; i<rows; i++) {
+            if(fread(mlp->weights[layer][i], sizeof(double), cols, f) != (size_t)cols) { free_mlp(mlp); fclose(f); return NULL; }
+        }
+
+        // allocate outputs for this layer
+        if(layer < mlp->num_hidden_layers)
+            mlp->outputs[layer] = malloc_1D(mlp->layer_sizes[layer]);
+        else
+            mlp->outputs[layer] = malloc_1D(mlp->classes);
+        if(!mlp->outputs[layer]) { free_mlp(mlp); fclose(f); return NULL; }
+    }
+
+    fclose(f);
+    return mlp;
 }
 
 #endif /* TRN_FNCS_H_ */

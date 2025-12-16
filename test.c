@@ -113,6 +113,22 @@ int main(void)
         test_acc = test_model(mlp, input_data, train_rows, rows, columns, classes);
         printf("\nTest accuracy: %.2f%% (%d/%d correct)\n", test_acc, (int)(test_acc*test_rows/100.0), test_rows);
 
+        // Ask user whether to save the trained model
+        char save_choice[8];
+        printf("Do you want to save the trained model? (y/n): ");
+        scanf("%7s", save_choice);
+        if(save_choice[0] == 'y' || save_choice[0] == 'Y') {
+            char save_path[buffer_size];
+            printf("Enter path to save model (e.g. model.mlpb): ");
+            scanf("%s", save_path);
+            int res = save_mlp_binary(mlp, save_path);
+            if(res == 0) {
+                printf("Model saved to %s\n", save_path);
+            } else {
+                printf("Failed to save model (error code %d)\n", res);
+            }
+        }
+
         free_matrix(input_data, rows);
         free_mlp(mlp);
         free(meta_data);

@@ -18,6 +18,16 @@ double d_sigmoid(double sig)
     return sig*(1.0-sig);
 }
 
+double relu(double x)
+{
+    return (x > 0.0) ? x : 0.0;
+}
+
+double d_relu(double x)
+{
+    return (x > 0.0) ? 1.0 : 0.0;
+}
+
 void softmax(double *input, double *output, int size)
 {
     int i;
