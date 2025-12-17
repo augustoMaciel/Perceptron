@@ -64,6 +64,24 @@ void init_weights_xavier(double **matrix, int rows, int columns)
     }
 }
 
+void init_weights_he(double **matrix, int rows, int columns)
+{
+    int i, j;
+    int fan_in = columns - 1;
+    if(fan_in <= 0) fan_in = 1;
+
+    double variance = 2.0 / (double)fan_in;
+    double limit = sqrt(3.0 * variance);
+
+    for(i=0; i<rows; i++)
+    {
+        for(j=0; j<columns; j++)
+        {
+            matrix[i][j] = -limit + 2.0*limit*((double)rand()/RAND_MAX);
+        }
+    }
+}
+
 MLP* create_mlp(int features, int classes, int num_hidden_layers, int *layer_sizes, double learning_rate, double l2_lambda, double rand_min, double rand_max)
 {
     int i, input_size, output_size;
@@ -130,7 +148,7 @@ MLP* create_mlp(int features, int classes, int num_hidden_layers, int *layer_siz
         return NULL;
     }
     printf("  Initializing first layer weights...\n"); fflush(stdout);
-    init_weights_xavier(mlp->weights[0], output_size, input_size + 1);
+    init_weights_he(mlp->weights[0], output_size, input_size + 1);
     
     for(i=1; i<num_hidden_layers; i++)
     {
@@ -146,7 +164,7 @@ MLP* create_mlp(int features, int classes, int num_hidden_layers, int *layer_siz
             return NULL;
         }
         printf("  Initializing hidden layer %d weights...\n", i); fflush(stdout);
-        init_weights_xavier(mlp->weights[i], output_size, input_size + 1);
+        init_weights_he(mlp->weights[i], output_size, input_size + 1);
     }
     
     input_size = layer_sizes[num_hidden_layers - 1];
@@ -161,7 +179,7 @@ MLP* create_mlp(int features, int classes, int num_hidden_layers, int *layer_siz
         return NULL;
     }
     printf("  Initializing output layer weights...\n"); fflush(stdout);
-    init_weights_xavier(mlp->weights[num_hidden_layers], output_size, input_size + 1);
+    init_weights_he(mlp->weights[num_hidden_layers], output_size, input_size + 1);
     
     printf("  MLP creation completed successfully!\n"); fflush(stdout);
     return mlp;
