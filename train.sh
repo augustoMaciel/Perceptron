@@ -1,0 +1,1 @@
+echo "dataset_perceptron.csv 3 32 16 8 60 0.01 0.0001 0.9 42" | ./test

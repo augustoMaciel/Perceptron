@@ -104,38 +104,59 @@ int get_columns_number (char *path, const char *delimiter, int buffer_size)
 
 int get_classes_number (char *path, const char *delimiter, int buffer_size, int rows)
 {
-	int n = 0, i = 0, j;
-	double *classes, aux;
+	int n = 0, i = 0;
+	double *classes;
 	FILE *file = fopen(path, "r");
 	char *token, *last_token, buffer[buffer_size];
 
-	classes = (double*)malloc(rows*sizeof(double));
-	fgets(buffer, sizeof(buffer), file);
-	do
+	if(!file) {
+		printf("ERROR: no such file as %s.\n", path);
+		fflush(stdout);
+		return 0;
+	}
+
+	classes = (double*)malloc(rows * sizeof(double));
+	if(!classes) {
+		fclose(file);
+		return 0;
+	}
+
+	i = 0;
+	while(fgets(buffer, buffer_size, file) != NULL && i < rows)
 	{
-		token = strtok(buffer, delimiter);
 		buffer[strcspn(buffer, "\n")] = 0;
-		while(token!=NULL)
+
+		// Tokenize the line and keep the last token
+		last_token = NULL;
+		token = strtok(buffer, delimiter);
+		while(token != NULL)
 		{
 			last_token = token;
 			token = strtok(NULL, delimiter);
 		}
-		classes[i] = atof(last_token);
-		i++;
-	}
-	while(fgets(buffer, sizeof(buffer), file)!=NULL);
-	
-	merge_sort(classes, 0, rows-1);
 
-	n = 1;
-	for(i=1; i<rows; i++)
-	{
-		if(classes[i] != classes[i-1])
+		if(last_token != NULL)
 		{
-			n++;
+			classes[i++] = atof(last_token);
 		}
 	}
-	
+
+	if(i == 0)
+	{
+		free(classes);
+		fclose(file);
+		return 0;
+	}
+
+	// sort only the collected entries
+	merge_sort(classes, 0, i-1);
+
+	n = 1;
+	for(int k = 1; k < i; k++)
+	{
+		if(classes[k] != classes[k-1]) n++;
+	}
+
 	free(classes);
 	fclose(file);
 	return n;
@@ -382,6 +403,36 @@ void normalize_dataset(double **data, int rows, int columns)
     }
 }
 
+// Normalize a single sample using min-max values computed from a dataset.
+// `features` is the number of feature columns in `data` and the length of `sample`.
+// This uses the same per-column min-max formula as `normalize_dataset`.
+void normalize_sample_using_dataset(double *sample, double **data, int rows, int features)
+{
+	if(!sample || !data || rows <= 0 || features <= 0) return;
+	int i, j;
+	double min, max;
+
+	for(j=0; j<features; j++)
+	{
+		min = data[0][j];
+		max = data[0][j];
+		for(i=1; i<rows; i++)
+		{
+			if(data[i][j] < min) min = data[i][j];
+			if(data[i][j] > max) max = data[i][j];
+		}
+
+		if(max != min)
+		{
+			sample[j] = (sample[j] - min) / (max - min);
+		}
+		else
+		{
+			sample[j] = 0.0;
+		}
+	}
+}
+
 void free_matrix (double **matrix, int rows)
 {
 	int i;
@@ -405,6 +456,34 @@ void free_matrix_contiguous (double **matrix, int rows)
 	}
 	
 	free(matrix);
+}
+
+// Build a 1-row matrix from an array of features provided at runtime.
+// The returned matrix has 1 row and `features_count` columns.
+// This matrix contains only features (no class/label column) and is
+// suitable for inference. Caller is responsible for freeing the matrix
+// using `free_matrix(matrix, 1)` when done.
+double** build_matrix_from_features(const double *features, int features_count)
+{
+	if(!features || features_count <= 0) return NULL;
+
+	int rows = 1;
+	int columns = features_count; // only features, no class column
+
+	double **matrix = malloc_2D_partial(rows);
+	if(!matrix) return NULL;
+
+	matrix[0] = (double*)malloc(columns * sizeof(double));
+	if(!matrix[0]) {
+		free(matrix);
+		return NULL;
+	}
+
+	for(int j=0; j<features_count; j++) {
+		matrix[0][j] = features[j];
+	}
+
+	return matrix;
 }
 
 #endif /* DT_MN_FNCS_H_ */
